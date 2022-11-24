@@ -9,3 +9,10 @@ export function assertAtLeastOneYocto() {
     const deposited = near.attachedDeposit();
     assert(deposited >= BigInt(1), "Requires at least 1 yoctoNEAR");
 }
+
+export function assertCrossContractCall() {
+    assert(
+        near.signerAccountId() != near.predecessorAccountId(),
+        "Only for cross-contract call"
+    );
+}

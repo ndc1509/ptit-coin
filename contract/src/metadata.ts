@@ -7,5 +7,3 @@ export class FTMetadata {
     reference_hash?: string;
     decimals: number;
 }
-
-

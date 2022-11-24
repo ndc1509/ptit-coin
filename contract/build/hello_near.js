@@ -542,6 +542,12 @@ function storageRemove(key) {
   return env.storage_remove(key, EVICTED_REGISTER) === 1n;
 }
 /**
+ * Returns the cost of storing 0 Byte on NEAR storage.
+ */
+function storageByteCost() {
+  return 10000000000000000000n;
+}
+/**
  * Returns the arguments passed to the current smart contract call.
  */
 function input() {
@@ -769,14 +775,19 @@ function internalGetAccountStorageUsage(contract, accountLength) {
   const len1StorageUsage = len64StorageUsage / BigInt(64);
   const lenAccountStorageUsage = len1StorageUsage * BigInt(accountLength);
   contract.accounts.remove(tempAccountId);
-  return lenAccountStorageUsage * BigInt(3);
+  log(`${len1StorageUsage} | ${storageByteCost()}`);
+  return lenAccountStorageUsage * BigInt(3); // * 3 maps
 }
+
+//Reg account
 function internalRegisterAccount(contract, registrantAccountId, accountId, amount) {
   assert(!contract.accounts.containsKey(accountId), "Account is already registered");
   contract.accounts.set(accountId, BigInt(0));
   contract.accountRegistrants.set(accountId, registrantAccountId);
   contract.accountDeposits.set(accountId, BigInt(amount));
 }
+
+//Send near
 function internalSendNEAR(receiverId, amount) {
   assert(amount > 0, "Sending amount must greater than 0");
   assert(accountBalance() > amount, `Not enough balance ${accountBalance()} to send ${amount}`);
@@ -788,22 +799,8 @@ function internalGetBalance(contract, accountId) {
   assert(contract.accounts.containsKey(accountId), `Account ${accountId} is not registered`);
   return contract.accounts.get(accountId).toString();
 }
-function internalDeposit(contract, accountId, amount) {
-  const balance = internalGetBalance(contract, accountId);
-  const newBalance = BigInt(balance) + BigInt(amount);
-  contract.accounts.set(accountId, newBalance);
-  const newSupply = BigInt(contract.totalSupply) + BigInt(amount);
-  contract.totalSupply = newSupply;
-}
-function internalWithdraw(contract, accountId, amount) {
-  const balance = internalGetBalance(contract, accountId);
-  const newBalance = BigInt(balance) - BigInt(amount);
-  const newSupply = BigInt(contract.totalSupply) - BigInt(amount);
-  assert(newBalance > -1, `Account ${accountId} doesn't have enough balance`);
-  assert(newSupply > -1, "Total supply overflow");
-  contract.accounts.set(accountId, newBalance);
-  contract.totalSupply = newSupply;
-}
+
+// Transfer tokens
 function internalTransfer(contract, senderId, receiverId, amount, memo = null) {
   assert(senderId != receiverId, "Sender and receiver must be different");
   assert(BigInt(amount) > BigInt(0), "Transfer amount must greater than 0");
@@ -811,12 +808,36 @@ function internalTransfer(contract, senderId, receiverId, amount, memo = null) {
   internalDeposit(contract, receiverId, amount);
 }
 
-function assertAtLeastOneYocto() {
-  const deposited = attachedDeposit();
-  assert(deposited >= BigInt(1), "Requires at least 1 yoctoNEAR");
+//Subtract sender's balance
+function internalWithdraw(contract, accountId, amount) {
+  const balance = internalGetBalance(contract, accountId);
+  const newBalance = BigInt(balance) - BigInt(amount);
+  const newSupply = BigInt(contract.totalSupply) - BigInt(amount);
+  assert(newBalance >= 0, `Account ${accountId} doesn't have enough balance`);
+  assert(newSupply >= 0, "Total supply overflow");
+  contract.accounts.set(accountId, newBalance);
+  contract.totalSupply = newSupply;
 }
 
-var _dec, _dec2, _dec3, _dec4, _dec5, _dec6, _dec7, _class, _class2;
+//Add to receiver's balance
+function internalDeposit(contract, accountId, amount) {
+  const balance = internalGetBalance(contract, accountId);
+  const newBalance = BigInt(balance) + BigInt(amount);
+  contract.accounts.set(accountId, newBalance);
+  const newSupply = BigInt(contract.totalSupply) + BigInt(amount);
+  contract.totalSupply = newSupply;
+}
+
+function assertOneYocto() {
+  const deposited = attachedDeposit();
+  assert(deposited == BigInt(1), "Requires 1 yoctoNEAR");
+}
+
+var _dec, _dec2, _dec3, _dec4, _dec5, _dec6, _dec7, _dec8, _class, _class2;
+const FT_METADATA_SPEC = "ft-1.0.0";
+const FT_STANDARD_NAME = "nep141";
+BigInt(1_000_000_000_000_000_000_000_000); // 1 Near
+const GAS_FOT_FT_ON_TRANSFER = 35_000_000_000_000;
 let FTContract = (_dec = NearBindgen({
   requireInit: true
 }), _dec2 = initialize(), _dec3 = call({
@@ -825,49 +846,79 @@ let FTContract = (_dec = NearBindgen({
   payableFunction: true
 }), _dec5 = call({
   payableFunction: true
-}), _dec6 = view(), _dec7 = view(), _dec(_class = (_class2 = class FTContract {
+}), _dec6 = view(), _dec7 = view(), _dec8 = view(), _dec(_class = (_class2 = class FTContract {
+  // Token creator
+  //1 token to Near
+
   // <AccountId, tokenAmount>
+  //<AccountId, registrant>
+  //<AccountId, deposit>
+  //Total tokens in the contract
 
   constructor() {
+    // this.owner_id = ""
     this.tokenMetadata = {
-      spec: "nep141",
-      name: "p-coin",
-      symbol: "ptit coin",
-      decimals: 9
+      spec: FT_METADATA_SPEC,
+      name: "PTIT TOKEN",
+      symbol: "ptitNEAR",
+      icon: "https://cdn-icons-png.flaticon.com/512/272/272525.png",
+      decimals: 8
     };
+    // this.tokenNearRate = BigInt(0);
     this.accounts = new LookupMap("a");
     this.accountRegistrants = new LookupMap("r");
     this.accountDeposits = new LookupMap("d");
-    this.totalSupply = BigInt("0");
+    // this.totalSupply = BigInt("0");
   }
+
   init({
     owner_id,
+    token_near_rate,
     total_supply
   }) {
     assert(BigInt(total_supply) > BigInt(0), "Total supply must greater than 0");
+    assert(BigInt(token_near_rate) > BigInt(0), "Token rate must greater than 0");
     validateAccountId(owner_id);
+    //Contract's owner will get all newly created tokens
+    this.owner_id = owner_id;
+    // this.tokenMetadata = metadata;
+    this.tokenNearRate = BigInt(token_near_rate);
     this.totalSupply = BigInt(total_supply);
     this.accounts.set(owner_id, this.totalSupply);
+
     //Logging
     const mintLog = [{
       owner_id,
       amount: total_supply
     }];
     const log$1 = {
-      standard: "nep141",
-      version: "ft-1.0.0",
+      standard: FT_STANDARD_NAME,
+      version: FT_METADATA_SPEC,
       event: "ft_mint",
       data: mintLog
     };
-    log(log$1);
+    log(`EVENT_JSON:${JSON.stringify(log$1)}`);
   }
+
+  // Using for creating new sub account
+  // @call({ payableFunction: true })
+  // create({ prefix }: { prefix: String }) {
+  //     const account_id = `${prefix}.${near.currentAccountId()}`;
+  //     NearPromise.new(account_id).createAccount().transfer(MIN_STORAGE);
+  // }
+
+  // Register new account
+  // Allow a user pays for a different user to register
   storage_deposit({
     account_id
   }) {
     const accountId = account_id || predecessorAccountId();
     validateAccountId(accountId);
+    //Deposit for data storage
     const attachedDeposit$1 = attachedDeposit();
+    //Account registered
     if (this.accounts.containsKey(accountId)) {
+      //Refund if deposited
       if (attachedDeposit$1 > 0) {
         internalSendNEAR(predecessorAccountId(), attachedDeposit$1);
         return {
@@ -878,14 +929,18 @@ let FTContract = (_dec = NearBindgen({
         message: "Account is already registered"
       };
     }
+    //New account registration
     const storageCost = internalGetAccountStorageUsage(this, accountId.length);
+    //Deposit enough for data storage
     if (attachedDeposit$1 < storageCost) {
       internalSendNEAR(predecessorAccountId(), attachedDeposit$1);
       return {
         message: `Not enough attached deposit to cover storage cost. Required: ${storageCost.toString()}`
       };
     }
+    //Register
     internalRegisterAccount(this, predecessorAccountId(), accountId, storageCost.toString());
+    //Register is done then refund over deposited
     const refund = attachedDeposit$1 - storageCost;
     if (refund > 0) {
       log("Storage registration refunding " + refund + " yoctoNEAR to " + predecessorAccountId());
@@ -895,13 +950,16 @@ let FTContract = (_dec = NearBindgen({
       message: `Account ${accountId} registered with storage deposit of ${storageCost.toString()}`
     };
   }
+
+  //Called by sender and transfer to a receiver
   ft_transfer({
     receiver_id,
     amount,
     memo
   }) {
-    assertAtLeastOneYocto();
+    assertOneYocto();
     const senderId = predecessorAccountId();
+    internalTransfer(this, senderId, receiver_id, amount, memo);
     //Logging
     const transferLog = [{
       amount,
@@ -910,30 +968,25 @@ let FTContract = (_dec = NearBindgen({
       memo
     }];
     const log$1 = {
-      standard: "nep141",
-      version: "ft-1.0.0",
+      standard: FT_STANDARD_NAME,
+      version: FT_METADATA_SPEC,
       event: "ft_transfer",
       data: transferLog
     };
-    log(log$1);
-    internalTransfer(this, senderId, receiver_id, amount, memo);
+    log(`EVENT_JSON:${JSON.stringify(log$1)}`);
   }
+
+  // Transfer token and call a method on receiver contract
   ft_transfer_call({
     receiver_id,
     amount,
     memo,
     msg
   }) {
-    assertAtLeastOneYocto();
+    assertOneYocto();
     const senderId = predecessorAccountId();
     internalTransfer(this, senderId, receiver_id, amount, memo);
     const promise = promiseBatchCreate(receiver_id);
-    const params = {
-      sender_id: senderId,
-      amount,
-      msg,
-      receiver_id
-    };
     //Logging
     const transferLog = [{
       amount,
@@ -942,13 +995,19 @@ let FTContract = (_dec = NearBindgen({
       memo
     }];
     const log$1 = {
-      standard: "nep141",
-      version: "ft-1.0.0",
+      standard: FT_STANDARD_NAME,
+      version: FT_METADATA_SPEC,
       event: "ft_transfer",
       data: transferLog
     };
-    log(log$1);
-    promiseBatchActionFunctionCall(promise, "ft_on_transfer", JSON.stringify(params), 0, 30_000_000_000_000_000);
+    log(`EVENT_JSON:${JSON.stringify(log$1)}`);
+    const params = {
+      sender_id: senderId,
+      amount,
+      msg,
+      receiver_id
+    };
+    promiseBatchActionFunctionCall(promise, "ft_on_transfer", JSON.stringify(params), 0, GAS_FOT_FT_ON_TRANSFER);
     return promiseReturn(promise);
   }
 
@@ -983,7 +1042,23 @@ let FTContract = (_dec = NearBindgen({
     validateAccountId(account_id);
     return internalGetBalance(this, account_id);
   }
-}, (_applyDecoratedDescriptor(_class2.prototype, "init", [_dec2], Object.getOwnPropertyDescriptor(_class2.prototype, "init"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "storage_deposit", [_dec3], Object.getOwnPropertyDescriptor(_class2.prototype, "storage_deposit"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer", [_dec4], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer_call", [_dec5], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer_call"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_total_supply", [_dec6], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_total_supply"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_balance_of", [_dec7], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_balance_of"), _class2.prototype)), _class2)) || _class);
+  ft_metadata() {
+    return this.tokenMetadata;
+  }
+}, (_applyDecoratedDescriptor(_class2.prototype, "init", [_dec2], Object.getOwnPropertyDescriptor(_class2.prototype, "init"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "storage_deposit", [_dec3], Object.getOwnPropertyDescriptor(_class2.prototype, "storage_deposit"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer", [_dec4], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer_call", [_dec5], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer_call"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_total_supply", [_dec6], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_total_supply"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_balance_of", [_dec7], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_balance_of"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_metadata", [_dec8], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_metadata"), _class2.prototype)), _class2)) || _class);
+function ft_metadata() {
+  const _state = FTContract._getState();
+  if (!_state && FTContract._requireInit()) {
+    throw new Error("Contract must be initialized");
+  }
+  const _contract = FTContract._create();
+  if (_state) {
+    FTContract._reconstruct(_contract, _state);
+  }
+  const _args = FTContract._getArgs();
+  const _result = _contract.ft_metadata(_args);
+  if (_result !== undefined) if (_result && _result.constructor && _result.constructor.name === "NearPromise") _result.onReturn();else env.value_return(FTContract._serialize(_result, true));
+}
 function ft_balance_of() {
   const _state = FTContract._getState();
   if (!_state && FTContract._requireInit()) {
@@ -1064,5 +1139,5 @@ function init() {
   if (_result !== undefined) if (_result && _result.constructor && _result.constructor.name === "NearPromise") _result.onReturn();else env.value_return(FTContract._serialize(_result, true));
 }
 
-export { FTContract, ft_balance_of, ft_total_supply, ft_transfer, ft_transfer_call, init, storage_deposit };
+export { FTContract, ft_balance_of, ft_metadata, ft_total_supply, ft_transfer, ft_transfer_call, init, storage_deposit };
 //# sourceMappingURL=hello_near.js.map

@@ -1,125 +1,96 @@
-import { FTMetadata } from "./metadata";
 import {
-    NearBindgen,
-    near,
-    call,
-    view,
-    LookupMap,
-    initialize,
     assert,
+    call,
+    initialize,
+    LookupMap,
+    near,
+    NearBindgen,
     validateAccountId,
+    view,
 } from "near-sdk-js";
+import { FT } from "./enum";
 import {
-    internalGetAccountStorageUsage,
-    internalGetBalance,
-    internalRegisterAccount,
-    internalSendNEAR,
+    internalFtOnPurchase,
+    internalFtPurchase,
+    internalOnPurchase,
+    internalOnRefund,
     internalTransfer,
-} from "./internal";
-import { assertAtLeastOneYocto } from "./utils";
-import { FtEventLogData, FtMintLog, FtTransferLog } from "./event";
-
-const FT_SPEC = "ft-1.0.0";
+    internalTransferCall,
+} from "./ft_core";
+import { icon } from "./icon";
+import { internalGetBalance } from "./internal";
+import { FTMetadata } from "./metadata";
+import { internalMint } from "./mint";
+import { internalUpdateRate } from "./rate";
+import { internalOnRegister, internalRegister } from "./registration";
 
 @NearBindgen({ requireInit: true })
 export class FTContract {
+    owner_id: string; // Token creator
+    rate: bigint; //1 token to yoctoNear
     tokenMetadata: FTMetadata;
     accounts: LookupMap<bigint>; // <AccountId, tokenAmount>
-    accountRegistrants: LookupMap<string>;
-    accountDeposits: LookupMap<bigint>;
-    totalSupply: bigint;
+    accountRegistrants: LookupMap<string>; //<AccountId, registrant>
+    accountDeposits: LookupMap<bigint>; //<AccountId, deposit>
+    totalSupply: bigint; //Total tokens in the contract
 
     constructor() {
+        this.owner_id = "";
+        this.rate = BigInt(0);
         this.tokenMetadata = {
-            spec: "nep141",
-            name: "p-coin",
-            symbol: "ptit coin",
-            decimals: 9,
+            spec: FT.METADATA_SPEC,
+            name: "PTIT TOKEN",
+            symbol: "ptitNEAR",
+            icon,
+            decimals: 0,
         };
         this.accounts = new LookupMap("a");
         this.accountRegistrants = new LookupMap("r");
         this.accountDeposits = new LookupMap("d");
-        this.totalSupply = BigInt("0");
+        this.totalSupply = BigInt(0);
     }
 
     @initialize({})
     init({
         owner_id,
+        rate,
         total_supply,
     }: {
         owner_id: string;
+        rate: string;
         total_supply: string;
     }) {
-        assert(
-            BigInt(total_supply) > BigInt(0),
-            "Total supply must greater than 0"
-        );
-        validateAccountId(owner_id);
-        this.totalSupply = BigInt(total_supply);
-        this.accounts.set(owner_id, this.totalSupply);
-        //Logging
-        const mintLog: FtMintLog[] = [
-            {
-                owner_id,
-                amount: total_supply,
-            },
-        ];
-        const log: FtEventLogData = {
-            standard: "nep141",
-            version: "ft-1.0.0",
-            event: "ft_mint",
-            data: mintLog,
-        };
-        near.log(log);
+        assert(validateAccountId(owner_id), "Invalid account ID");
+        this.owner_id = owner_id;
+        internalUpdateRate(this, rate);
+        internalMint(this, BigInt(total_supply));
+    }
+
+    //Register new account
+    //Allow a user pays for a different user to register
+    @call({ payableFunction: true })
+    ft_register({ account_id }: { account_id?: string }) {
+        return internalRegister(this, account_id);
+    }
+
+    //Register
+    @call({ payableFunction: true })
+    ft_on_register() {
+        return internalOnRegister(this);
     }
 
     @call({ payableFunction: true })
-    storage_deposit({ account_id }: { account_id: string }) {
-        const accountId = account_id || near.predecessorAccountId();
-        validateAccountId(accountId);
-        const attachedDeposit = near.attachedDeposit();
-        if (this.accounts.containsKey(accountId)) {
-            if (attachedDeposit > 0) {
-                internalSendNEAR(near.predecessorAccountId(), attachedDeposit);
-                return {
-                    message:
-                        "Account is already registered, deposit refunded to predecessor",
-                };
-            }
-            return { message: "Account is already registered" };
-        }
-        const storageCost = internalGetAccountStorageUsage(
-            this,
-            accountId.length
-        );
-        if (attachedDeposit < storageCost) {
-            internalSendNEAR(near.predecessorAccountId(), attachedDeposit);
-            return {
-                message: `Not enough attached deposit to cover storage cost. Required: ${storageCost.toString()}`,
-            };
-        }
-        internalRegisterAccount(
-            this,
-            near.predecessorAccountId(),
-            accountId,
-            storageCost.toString()
-        );
-        const refund = attachedDeposit - storageCost;
-        if (refund > 0) {
-            near.log(
-                "Storage registration refunding " +
-                    refund +
-                    " yoctoNEAR to " +
-                    near.predecessorAccountId()
-            );
-            internalSendNEAR(near.predecessorAccountId(), refund);
-        }
-        return {
-            message: `Account ${accountId} registered with storage deposit of ${storageCost.toString()}`,
-        };
+    on_buy_ft() {
+        return internalFtOnPurchase(this);
     }
 
     @call({ payableFunction: true })
+    buy_ft() {
+        return internalFtPurchase(this);
+    }
+
+    //Called by contract's owner and transfer to a receiver
+    @call({ privateFunction: true })
     ft_transfer({
         receiver_id,
         amount,
@@ -129,28 +100,12 @@ export class FTContract {
         amount: string;
         memo?: string;
     }) {
-        assertAtLeastOneYocto();
         const senderId = near.predecessorAccountId();
-        //Logging
-        const transferLog: FtTransferLog[] = [
-            {
-                amount,
-                old_owner_id: senderId,
-                new_owner_id: receiver_id,
-                memo,
-            },
-        ];
-        const log: FtEventLogData = {
-            standard: "nep141",
-            version: "ft-1.0.0",
-            event: "ft_transfer",
-            data: transferLog,
-        };
-        near.log(log);
         internalTransfer(this, senderId, receiver_id, amount, memo);
     }
 
-    @call({ payableFunction: true })
+    //Transfer token and call a method on receiver contract
+    @call({ privateFunction: true })
     ft_transfer_call({
         receiver_id,
         amount,
@@ -162,72 +117,66 @@ export class FTContract {
         memo?: string;
         msg?: string;
     }) {
-        assertAtLeastOneYocto();
         const senderId = near.predecessorAccountId();
-        internalTransfer(this, senderId, receiver_id, amount, memo);
-        const promise = near.promiseBatchCreate(receiver_id);
-        const params = {
-            sender_id: senderId,
-            amount,
-            msg,
-            receiver_id,
-        };
-        //Logging
-        const transferLog: FtTransferLog[] = [
-            {
-                amount,
-                old_owner_id: senderId,
-                new_owner_id: receiver_id,
-                memo,
-            },
-        ];
-        const log: FtEventLogData = {
-            standard: "nep141",
-            version: "ft-1.0.0",
-            event: "ft_transfer",
-            data: transferLog,
-        };
-        near.log(log);
-        near.promiseBatchActionFunctionCall(
-            promise,
-            "ft_on_transfer",
-            JSON.stringify(params),
-            0,
-            30_000_000_000_000_000
-        );
-        return near.promiseReturn(promise);
+        internalTransferCall(this, senderId, receiver_id, amount, memo, msg);
     }
 
-    // @call({ payableFunction: true })
-    // ft_resolve_transfer({
-    //     sender_id,
-    //     receiver_id,
-    //     amount,
-    // }: {
-    //     sender_id: string;
-    //     receiver_id: string;
-    //     amount: string;
-    // }) {}
+    @call({ payableFunction: true })
+    ft_on_purchase({ amount, memo }: { amount: string; memo?: string }) {
+        return internalOnPurchase(this, amount, memo);
+    }
 
+    @call({ payableFunction: true })
+    ft_on_refund({ amount, memo }: { amount: string; memo?: string }) {
+        return internalOnRefund(this, amount, memo);
+    }
+
+    //Mint token
+    @call({ privateFunction: true })
+    ft_mint({ amount }: { amount: string }) {
+        internalMint(this, BigInt(amount));
+    }
+
+    //Burn token
     // @call({ privateFunction: true })
-    // ft_on_transfer({
-    //     sender_id,
-    //     amount,
-    //     msg,
-    // }: {
-    //     sender_id: string;
-    //     amount: string;
-    //     msg: string;
-    // }) {}
+    // ft_burn({ amount, memo }: { amount: string; memo?: string }) {
+    //     internalBurn(this, BigInt(amount), memo);
+    // }
 
+    //Total supply
     @view({})
     ft_total_supply() {
         return this.totalSupply;
     }
 
+    //Balance of an account
     @view({})
-    ft_balance_of({ account_id }: { account_id: string }) {
-        validateAccountId(account_id);
+    ft_balance_of({ account_id }: { account_id: string }): string {
         return internalGetBalance(this, account_id);
+    }
+
+    //Token metadata
+    @view({})
+    ft_metadata() {
+        return this.tokenMetadata;
+    }
+
+    //Near rate
+    @view({})
+    ft_rate(): string {
+        return this.rate.toString();
+    }
+
+    //Update near rate
+    @call({ privateFunction: true })
+    ft_update_rate({ rate }: { rate: string }) {
+        internalUpdateRate(this, rate);
+    }
+
+    @call({privateFunction: true}) 
+    clean() {
+        near.storageRemove("a");
+        near.storageRemove("r");
+        near.storageRemove("d");
     }
 }
