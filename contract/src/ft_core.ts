@@ -36,31 +36,31 @@ export function internalTransfer(
     near.log(`EVENT_JSON:${JSON.stringify(log)}`);
 }
 
-export function internalTransferCall(
-    contract: FTContract,
-    senderId: string,
-    receiverId: string,
-    amount: string,
-    memo: string = null,
-    msg: string = null
-) {
-    internalTransfer(contract, senderId, receiverId, amount, memo);
-    const promise = near.promiseBatchCreate(receiverId);
-    const params = {
-        sender_id: senderId,
-        amount,
-        msg,
-        receiver_id: receiverId,
-    };
-    near.promiseBatchActionFunctionCall(
-        promise,
-        "ft_on_transfer",
-        JSON.stringify(params),
-        0,
-        GAS.FOR_FT_ON_TRANSFER
-    );
-    return near.promiseReturn(promise);
-}
+// export function internalTransferCall(
+//     contract: FTContract,
+//     senderId: string,
+//     receiverId: string,
+//     amount: string,
+//     memo: string = null,
+//     msg: string = null
+// ) {
+//     internalTransfer(contract, senderId, receiverId, amount, memo);
+//     const promise = near.promiseBatchCreate(receiverId);
+//     const params = {
+//         sender_id: senderId,
+//         amount,
+//         msg,
+//         receiver_id: receiverId,
+//     };
+//     near.promiseBatchActionFunctionCall(
+//         promise,
+//         "ft_on_transfer",
+//         JSON.stringify(params),
+//         0,
+//         GAS.FOR_FT_ON_TRANSFER
+//     );
+//     return near.promiseReturn(promise);
+// }
 
 //Subtract sender's balance
 export function internalWithdraw(
@@ -90,24 +90,25 @@ export function internalDeposit(
     contract.totalSupply = newSupply;
 }
 
-export function internalFtOnPurchase(contract: FTContract) {
-    assertCrossContractCall();
-    const receiverId = near.signerAccountId();
-    const senderId = near.currentAccountId();
-    const nearAmount = near.attachedDeposit();
-    assert(nearAmount >= contract.rate, "Must buy at least 1 token");
-    const tokenAmount = (nearAmount / contract.rate).toString();
-    internalWithdraw(contract, senderId, tokenAmount);
-    internalDeposit(contract, receiverId, tokenAmount);
-    near.log(`${receiverId} bought ${tokenAmount} successfully`);
-    //Refund over deposited
-    const refundAmount = nearAmount % contract.rate;
-    if (refundAmount > 0) {
-        internalSendNEAR(receiverId, refundAmount);
-        near.log(`Refund ${refundAmount} NEAR to ${receiverId}`);
-    }
-    return `${receiverId} bought ${tokenAmount} successfully`;
-}
+//Mua ho token
+// export function internalFtOnPurchase(contract: FTContract) {
+//     assertCrossContractCall();
+//     const receiverId = near.signerAccountId();
+//     const senderId = near.currentAccountId();
+//     const nearAmount = near.attachedDeposit();
+//     assert(nearAmount >= contract.rate, "Must buy at least 1 token");
+//     const tokenAmount = (nearAmount / contract.rate).toString();
+//     internalWithdraw(contract, senderId, tokenAmount);
+//     internalDeposit(contract, receiverId, tokenAmount);
+//     near.log(`${receiverId} bought ${tokenAmount} successfully`);
+//     //Refund over deposited
+//     const refundAmount = nearAmount % contract.rate;
+//     if (refundAmount > 0) {
+//         internalSendNEAR(receiverId, refundAmount);
+//         near.log(`Refund ${refundAmount} NEAR to ${receiverId}`);
+//     }
+//     return `${receiverId} bought ${tokenAmount} successfully`;
+// }
 
 export function internalFtPurchase(contract: FTContract) {
     const receiverId = near.predecessorAccountId();

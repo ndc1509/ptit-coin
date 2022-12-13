@@ -1012,7 +1012,7 @@ function internalRegister(contract, registerId) {
   };
 }
 
-var _dec, _dec2, _dec3, _dec4, _dec5, _dec6, _dec7, _dec8, _dec9, _dec10, _dec11, _dec12, _dec13, _dec14, _dec15, _dec16, _dec17, _class, _class2;
+var _dec, _dec2, _dec3, _dec4, _dec5, _dec6, _dec7, _dec8, _dec9, _dec10, _dec11, _dec12, _dec13, _dec14, _dec15, _dec16, _class, _class2;
 let FTContract = (_dec = NearBindgen({
   requireInit: true
 }), _dec2 = initialize(), _dec3 = call({
@@ -1024,7 +1024,8 @@ let FTContract = (_dec = NearBindgen({
 }), _dec6 = call({
   payableFunction: true
 }), _dec7 = call({
-  privateFunction: true
+  privateFunction: true,
+  payableFunction: true
 }), _dec8 = call({
   privateFunction: true
 }), _dec9 = call({
@@ -1034,8 +1035,6 @@ let FTContract = (_dec = NearBindgen({
 }), _dec11 = call({
   privateFunction: true
 }), _dec12 = view(), _dec13 = view(), _dec14 = view(), _dec15 = view(), _dec16 = call({
-  privateFunction: true
-}), _dec17 = call({
   privateFunction: true
 }), _dec(_class = (_class2 = class FTContract {
   // Token creator
@@ -1165,26 +1164,7 @@ let FTContract = (_dec = NearBindgen({
   }) {
     internalUpdateRate(this, rate);
   }
-  clean() {
-    storageRemove("a");
-    storageRemove("r");
-    storageRemove("d");
-  }
-}, (_applyDecoratedDescriptor(_class2.prototype, "init", [_dec2], Object.getOwnPropertyDescriptor(_class2.prototype, "init"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_register", [_dec3], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_register"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_register", [_dec4], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_register"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "on_buy_ft", [_dec5], Object.getOwnPropertyDescriptor(_class2.prototype, "on_buy_ft"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "buy_ft", [_dec6], Object.getOwnPropertyDescriptor(_class2.prototype, "buy_ft"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer", [_dec7], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer_call", [_dec8], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer_call"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_purchase", [_dec9], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_purchase"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_refund", [_dec10], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_refund"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_mint", [_dec11], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_mint"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_total_supply", [_dec12], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_total_supply"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_balance_of", [_dec13], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_balance_of"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_metadata", [_dec14], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_metadata"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_rate", [_dec15], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_rate"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_update_rate", [_dec16], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_update_rate"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "clean", [_dec17], Object.getOwnPropertyDescriptor(_class2.prototype, "clean"), _class2.prototype)), _class2)) || _class);
-function clean() {
-  const _state = FTContract._getState();
-  if (!_state && FTContract._requireInit()) {
-    throw new Error("Contract must be initialized");
-  }
-  const _contract = FTContract._create();
-  if (_state) {
-    FTContract._reconstruct(_contract, _state);
-  }
-  const _args = FTContract._getArgs();
-  const _result = _contract.clean(_args);
-  FTContract._saveToStorage(_contract);
-  if (_result !== undefined) if (_result && _result.constructor && _result.constructor.name === "NearPromise") _result.onReturn();else env.value_return(FTContract._serialize(_result, true));
-}
+}, (_applyDecoratedDescriptor(_class2.prototype, "init", [_dec2], Object.getOwnPropertyDescriptor(_class2.prototype, "init"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_register", [_dec3], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_register"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_register", [_dec4], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_register"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "on_buy_ft", [_dec5], Object.getOwnPropertyDescriptor(_class2.prototype, "on_buy_ft"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "buy_ft", [_dec6], Object.getOwnPropertyDescriptor(_class2.prototype, "buy_ft"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer", [_dec7], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_transfer_call", [_dec8], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_transfer_call"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_purchase", [_dec9], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_purchase"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_on_refund", [_dec10], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_on_refund"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_mint", [_dec11], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_mint"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_total_supply", [_dec12], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_total_supply"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_balance_of", [_dec13], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_balance_of"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_metadata", [_dec14], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_metadata"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_rate", [_dec15], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_rate"), _class2.prototype), _applyDecoratedDescriptor(_class2.prototype, "ft_update_rate", [_dec16], Object.getOwnPropertyDescriptor(_class2.prototype, "ft_update_rate"), _class2.prototype)), _class2)) || _class);
 function ft_update_rate() {
   const _state = FTContract._getState();
   if (!_state && FTContract._requireInit()) {
@@ -1389,5 +1369,5 @@ function init() {
   if (_result !== undefined) if (_result && _result.constructor && _result.constructor.name === "NearPromise") _result.onReturn();else env.value_return(FTContract._serialize(_result, true));
 }
 
-export { FTContract, buy_ft, clean, ft_balance_of, ft_metadata, ft_mint, ft_on_purchase, ft_on_refund, ft_on_register, ft_rate, ft_register, ft_total_supply, ft_transfer, ft_transfer_call, ft_update_rate, init, on_buy_ft };
+export { FTContract, buy_ft, ft_balance_of, ft_metadata, ft_mint, ft_on_purchase, ft_on_refund, ft_on_register, ft_rate, ft_register, ft_total_supply, ft_transfer, ft_transfer_call, ft_update_rate, init, on_buy_ft };
 //# sourceMappingURL=coin.js.map

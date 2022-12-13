@@ -79,10 +79,10 @@ export class FTContract {
         return internalOnRegister(this);
     }
 
-    @call({ payableFunction: true })
-    on_buy_ft() {
-        return internalFtOnPurchase(this);
-    }
+    // @call({ payableFunction: true })
+    // on_buy_ft() {
+    //     return internalFtOnPurchase(this);
+    // }
 
     @call({ payableFunction: true })
     buy_ft() {
@@ -90,7 +90,7 @@ export class FTContract {
     }
 
     //Called by contract's owner and transfer to a receiver
-    @call({ privateFunction: true })
+    @call({ privateFunction: true, payableFunction: true })
     ft_transfer({
         receiver_id,
         amount,
@@ -105,21 +105,21 @@ export class FTContract {
     }
 
     //Transfer token and call a method on receiver contract
-    @call({ privateFunction: true })
-    ft_transfer_call({
-        receiver_id,
-        amount,
-        memo,
-        msg,
-    }: {
-        receiver_id: string;
-        amount: string;
-        memo?: string;
-        msg?: string;
-    }) {
-        const senderId = near.predecessorAccountId();
-        internalTransferCall(this, senderId, receiver_id, amount, memo, msg);
-    }
+    // @call({ privateFunction: true })
+    // ft_transfer_call({
+    //     receiver_id,
+    //     amount,
+    //     memo,
+    //     msg,
+    // }: {
+    //     receiver_id: string;
+    //     amount: string;
+    //     memo?: string;
+    //     msg?: string;
+    // }) {
+    //     const senderId = near.predecessorAccountId();
+    //     internalTransferCall(this, senderId, receiver_id, amount, memo, msg);
+    // }
 
     @call({ payableFunction: true })
     ft_on_purchase({ amount, memo }: { amount: string; memo?: string }) {
@@ -171,12 +171,5 @@ export class FTContract {
     @call({ privateFunction: true })
     ft_update_rate({ rate }: { rate: string }) {
         internalUpdateRate(this, rate);
-    }
-
-    @call({privateFunction: true}) 
-    clean() {
-        near.storageRemove("a");
-        near.storageRemove("r");
-        near.storageRemove("d");
     }
 }
